@@ -2,7 +2,7 @@ import json
 import os
 import re
 from ssl import OP_SINGLE_DH_USE
-from tkinter import E
+# from tkinter import E
 import urllib
 from datetime import date
 from time import sleep
