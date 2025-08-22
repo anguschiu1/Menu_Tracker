@@ -57,3 +57,4 @@ selenium==4.35.0
 # zope.interface==5.4.0
 fake-useragent==2.2.0
 iteration_utilities
+webdriver-manager==4.0.2
