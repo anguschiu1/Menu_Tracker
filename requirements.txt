@@ -38,7 +38,7 @@ pandas==2.2.3
 # queuelib==1.6.2
 requests==2.32.5
 # Scrapy==2.5.1
-# scrapy-selenium==0.0.7
+scrapy-selenium==0.0.7
 selenium==4.35.0
 # service-identity==21.1.0
 # six==1.16.0
