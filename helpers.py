@@ -277,10 +277,26 @@ def RunSpider(spidername, folder, json_=False):
 # function: run the script for a restaurant (requests)
 def RunScript(rest_name):
     try:
-        os.system('python ' + rest_name + '.py')
-        print('Successfully scraped ' + rest_name)
-    except:
-        print('Issues with' + rest_name + '. Please Review')
+        # Use subprocess instead of os.system to capture output
+        result = subprocess.run(['python', rest_name + '.py'], 
+                              capture_output=True, 
+                              text=True)
+        
+        print(f"=== STDOUT for {rest_name} ===")
+        print(result.stdout)
+        
+        print(f"=== STDERR for {rest_name} ===")
+        print(result.stderr)
+        
+        print(f"=== Return code: {result.returncode} ===")
+        
+        if result.returncode == 0:
+            print('Successfully scraped ' + rest_name)
+        else:
+            print(f'Issues with {rest_name}. Please Review')
+            
+    except Exception as e:
+        print(f'Exception running {rest_name}: {e}')
 
 # Downloading PDF for Greene King companies
 def greene_king_download(rest_name, id, url, folder):

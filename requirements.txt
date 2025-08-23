@@ -37,8 +37,8 @@ pandas==2.2.3
 # pytz==2021.3
 # queuelib==1.6.2
 requests==2.32.5
-# Scrapy==2.5.1
-scrapy-selenium==0.0.7
+# scrapy==2.13.3
+# scrapy-selenium==0.0.7
 selenium==4.35.0
 # service-identity==21.1.0
 # six==1.16.0
@@ -57,4 +57,5 @@ selenium==4.35.0
 # zope.interface==5.4.0
 fake-useragent==2.2.0
 iteration_utilities
-webdriver-manager==4.0.2
+# webdriver-manager==4.0.2
+# undetected-chromedriver==3.1.5

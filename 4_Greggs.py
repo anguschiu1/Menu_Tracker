@@ -14,6 +14,9 @@ with open(path_greggs + '/greggs.json', 'w') as f:
 
 greggs = []
 category_map = requests.get('https://api.storyblok.com/v2/cdn/datasource_entries/?datasource=category-ids&version=published&token=KLOrdhTNVjQnjwj0IppdrAtt').json().get('datasource_entries')
+print("Text content found, length:", len(category_map))
+print("First 200 characters of text content:")
+print(category_map[:200])
 lookup = {cat.get('value'): cat.get('name')for cat in category_map}
 for product in product_list:
     cat_id = product.get('articleCategoryId')
