@@ -2,13 +2,13 @@
 import json
 from datetime import date
 
+import google_colab_selenium as gs
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 from fake_useragent import UserAgent
 
 from define_collection_wave import folder
@@ -22,31 +22,30 @@ def crawl_kfc_nutrition():
     # Initialize fake user agent
     ua = UserAgent()
     random_user_agent = ua.random
-    
+
     options = Options()
-    options.add_argument('--headless=new')  # Use new headless mode
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument(f"--user-agent={random_user_agent}")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    
+    # Add extra options
+    options.add_argument("--window-size=1920,1080")  # Set the window size
+    options.add_argument("--disable-infobars")  # Disable the infobars
+    options.add_argument("--disable-popup-blocking")  # Disable pop-ups
+    options.add_argument("--ignore-certificate-errors")  # Ignore certificate errors
+    options.add_argument("--incognito")  # Use Chrome in incognito mode
+
+    driver = gs.UndetectedChrome(options=options)
+
     # Execute script to remove webdriver property
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    
+
     try:
         url = "https://www.kfc.co.uk/nutrition-allergens?close"
         driver.get(url)
-        
+
         # Print page source to see what's actually loaded
         print("Page URL:", driver.current_url)
         print("Page source length:", len(driver.page_source))
         # print("First 1000 characters of page source:")
-        # print(driver.page_source[:1000])
-        
+        print(driver.page_source[:500000])
+
         # Wait for the script tag to load
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, '//script[@id="__NEXT_DATA__"]'))
