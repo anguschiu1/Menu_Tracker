@@ -47,6 +47,18 @@ def setup_driver():
     
     return driver
 
+def clean_text(text):
+    """Clean text by removing unicode characters and normalizing whitespace"""
+    if not text:
+        return ""
+    # Convert unicode pound sign to proper £ symbol
+    cleaned = re.sub(r'\u00a3', '£', text)
+    # Remove other problematic unicode characters
+    cleaned = re.sub(r'[\u00a0\u2009\u200a\u200b\u2060\ufeff]', ' ', cleaned)
+    # Replace multiple whitespace with single space and strip
+    cleaned = ' '.join(cleaned.split())
+    return cleaned
+
 def download_pdf(url, filename, folder_path):
     """Download a PDF file from URL"""
     try:
