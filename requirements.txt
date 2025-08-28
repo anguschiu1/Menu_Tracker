@@ -51,11 +51,10 @@ selenium==4.35.0
 # typing_extensions==4.1.1
 # urllib3==1.26.8
 # w3lib==1.22.0
-# webdriver-manager==3.5.4
+webdriver-manager==4.0.2
 # wsproto==1.1.0
 # xlrd==2.0.1
 # zope.interface==5.4.0
 fake-useragent==2.2.0
 iteration_utilities==0.13.0
-# webdriver-manager==4.0.2
 # undetected-chromedriver==3.1.5

@@ -59,6 +59,36 @@ def clean_text(text):
     cleaned = ' '.join(cleaned.split())
     return cleaned
 
+def setup_driver_colab():
+    """Setup Chrome driver with Google Colab specific options"""
+    try:
+        import google_colab_selenium as gs
+    except ImportError:
+        raise ImportError("google_colab_selenium is required for Colab environment. Install with: !pip install google_colab_selenium")
+    
+    from fake_useragent import UserAgent
+    from selenium.webdriver.chrome.options import Options
+    
+    # Initialize fake user agent
+    ua = UserAgent()
+    random_user_agent = ua.random
+
+    options = Options()
+    # Add extra options for Colab environment
+    options.add_argument("--window-size=1920,1080")  # Set the window size
+    options.add_argument("--disable-infobars")  # Disable the infobars
+    options.add_argument("--disable-popup-blocking")  # Disable pop-ups
+    options.add_argument("--ignore-certificate-errors")  # Ignore certificate errors
+    options.add_argument("--incognito")  # Use Chrome in incognito mode
+    options.add_argument(f"--user-agent={random_user_agent}")
+
+    driver = gs.UndetectedChrome(options=options)
+
+    # Execute script to remove webdriver property
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    return driver
+
 def download_pdf(url, filename, folder_path):
     """Download a PDF file from URL"""
     try:
