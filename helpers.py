@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import subprocess
 from ssl import OP_SINGLE_DH_USE
 # from tkinter import E
 import urllib
@@ -14,10 +15,102 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from fake_useragent import UserAgent
+from selenium.webdriver.chrome.options import Options
+
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 from define_collection_wave import folder
 import platform
+
+def setup_driver():
+    """Setup Chrome driver with anti-detection options"""
+    ua = UserAgent()
+    random_user_agent = ua.random
+    
+    options = Options()
+    options.add_argument('--headless=new')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument(f"--user-agent={random_user_agent}")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    
+    # Remove webdriver property
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    return driver
+
+def clean_text(text):
+    """Clean text by removing unicode characters and normalizing whitespace"""
+    if not text:
+        return ""
+    # Convert unicode pound sign to proper £ symbol
+    cleaned = re.sub(r'\u00a3', '£', text)
+    # Remove other problematic unicode characters
+    cleaned = re.sub(r'[\u00a0\u2009\u200a\u200b\u2060\ufeff]', ' ', cleaned)
+    # Replace multiple whitespace with single space and strip
+    cleaned = ' '.join(cleaned.split())
+    return cleaned
+
+def download_pdf(url, filename, folder_path):
+    """Download a PDF file from URL"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, stream=True)
+        response.raise_for_status()
+        
+        # Ensure filename ends with .pdf
+        if not filename.lower().endswith('.pdf'):
+            filename += '.pdf'
+        
+        # Clean filename of invalid characters
+        filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+        
+        file_path = os.path.join(folder_path, filename)
+        
+        with open(file_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+        
+        print(f"Downloaded: {filename}")
+        return True
+    
+    except Exception as e:
+        print(f"Error downloading {filename}: {str(e)}")
+        return False
+
+
+
+# Initialise Selenium web driver
+ua = UserAgent()
+random_user_agent = ua.random
+
+options = Options()
+options.add_argument('--headless=new')  # Use new headless mode
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument(f"--user-agent={random_user_agent}")
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_experimental_option("excludeSwitches", ["enable-automation"])
+options.add_experimental_option('useAutomationExtension', False)
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+# Execute script to remove webdriver property
+driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+print(f'header: {random_user_agent}')
+
 
 # Define paths 
 root_path = os.getcwd()
@@ -166,41 +259,28 @@ def vue_PDF(rest_name, url, xpath_=None):
     
 # Download PDFs with Selenium
 def java_PDF(rest_name, url, prex=None, link_=True, xpath_=None, value='media'):
-    ua = UserAgent()
-
-    print(f'header: {ua.random}')
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument(f"user-agent={ua.random}")
-    chrome_options.add_argument("--headless=new")  # Enable headless mode
-    chrome_options.add_argument("--window-size=1920,1080")  # Set window size
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled") # remove automation flag
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"]) # remove automation flag
-    chrome_options.add_experimental_option('useAutomationExtension', False) # remove automation flag
-
     print('1. source url: ' + url)
     path = create_folder(rest_name, folder)
-    s = Service(web_browser_path)
-    # browser = webdriver.Chrome(service=s)
-    browser = webdriver.Chrome(service=s, options=chrome_options)
 
     print('2. Browsing: ' + url)
-    browser.get(url)
-    sleep(10)
+    driver.get(url)
+    
+    # sleep(10)
+    
     # links that contain PDF
     # print(f'browser data: {browser.page_source}')
     print(f'3. link_: {link_}')
-
     if link_:
         links = [link.get_attribute('href') for link in
-                    browser.find_elements(by=By.PARTIAL_LINK_TEXT, value='Download')]
+                    driver.find_elements(by=By.PARTIAL_LINK_TEXT, value='Download')]
     else:
         links = [link.get_attribute('href') for link in
-                    browser.find_elements(by=By.XPATH, value=xpath_)]
+                    driver.find_elements(by=By.XPATH, value=xpath_)]
     print(f'4. links: {", ".join(map(str, links))}')
     for url_link in links:
         print('5. Browsing: ' + url_link)
-        browser.get(url_link)
-        url_link = browser.current_url
+        driver.get(url_link)
+        url_link = driver.current_url
         sleep(5)
         if 'https://' not in url_link and 'http://' not in url_link:
             if url_link[0] != '/':
@@ -218,7 +298,7 @@ def java_PDF(rest_name, url, prex=None, link_=True, xpath_=None, value='media'):
         print(filePath)
         PDFDownloader(url=url_link, filePath=filePath)
     print(f'6. finished downloading pdfs for {rest_name}')
-    browser.quit()
+    driver.quit()
 
 def IMGDownloader(url, filePath):
     opener = urllib.request.build_opener()
