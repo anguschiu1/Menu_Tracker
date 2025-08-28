@@ -4,7 +4,6 @@ import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from urllib.parse import urljoin, urlparse
 
 from define_collection_wave import folder
 from helpers import create_folder, setup_driver, download_pdf

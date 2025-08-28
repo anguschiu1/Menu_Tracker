@@ -2,41 +2,21 @@
 import json
 from datetime import date
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from fake_useragent import UserAgent
 
 from define_collection_wave import folder
-from helpers import create_folder
+from helpers import create_folder, setup_driver
 
 path_kfc = create_folder('5_KFC', folder)
 file_kfc = path_kfc + '/kfc_nutrition.json'
 
 
 def crawl_kfc_nutrition():
-    # Initialize fake user agent
-    ua = UserAgent()
-    random_user_agent = ua.random
-    
-    options = Options()
-    options.add_argument('--headless=new')  # Use new headless mode
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument(f"--user-agent={random_user_agent}")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    
-    # Execute script to remove webdriver property
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    
+    # Setup driver using helper function
+    driver = setup_driver()
+
     try:
         url = "https://www.kfc.co.uk/nutrition-allergens?close"
         driver.get(url)
