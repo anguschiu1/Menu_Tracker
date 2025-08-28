@@ -1,7 +1,7 @@
 import os
 
 # start the collection - create a new master folder
-folder = 'Sep_collection_2025'
+folder = '../drive/MyDrive/menutracker/Sep_collection_2025'
 
 def create_collection():
     try:

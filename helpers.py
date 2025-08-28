@@ -122,24 +122,24 @@ def download_pdf(url, filename, folder_path):
 
 
 # Initialise Selenium web driver
-ua = UserAgent()
-random_user_agent = ua.random
+# ua = UserAgent()
+# random_user_agent = ua.random
 
-options = Options()
-options.add_argument('--headless=new')  # Use new headless mode
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument(f"--user-agent={random_user_agent}")
-options.add_argument("--disable-blink-features=AutomationControlled")
-options.add_experimental_option("excludeSwitches", ["enable-automation"])
-options.add_experimental_option('useAutomationExtension', False)
+# options = Options()
+# options.add_argument('--headless=new')  # Use new headless mode
+# options.add_argument('--no-sandbox')
+# options.add_argument('--disable-dev-shm-usage')
+# options.add_argument(f"--user-agent={random_user_agent}")
+# options.add_argument("--disable-blink-features=AutomationControlled")
+# options.add_experimental_option("excludeSwitches", ["enable-automation"])
+# options.add_experimental_option('useAutomationExtension', False)
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+# driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-# Execute script to remove webdriver property
-driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+# # Execute script to remove webdriver property
+# driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-print(f'header: {random_user_agent}')
+# print(f'header: {random_user_agent}')
 
 
 # Define paths 
