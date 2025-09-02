@@ -1,12 +1,16 @@
-from datetime import date
-
-import pandas as pd
+import json
 import requests
+from datetime import date
+import pandas as pd
 
 from define_collection_wave import folder
 from helpers import create_folder
 
-caffenero_path = create_folder('14_CaffeNero', folder)
+path_caffenero = create_folder('14_CaffeNero', folder)
+file_caffenero_json = path_caffenero + '/caffenero_items.json'
+file_caffenero_csv = path_caffenero + '/caffenero_items.csv'
+
+
 
 # find start URLs
 url_request = 'https://caffenero-webassets-production.s3.eu-west-2.amazonaws.com/menus/menu_gb_en-gb.json'
@@ -77,4 +81,9 @@ for category in response_nero:
     parse_item(category, list)
 
 caffenero_df = pd.DataFrame(list)
-caffenero_df.to_csv(caffenero_path + '/caffenero_items.csv')
+caffenero_df.to_csv(file_caffenero_csv)
+print(f"Scraped {len(list)} items. Data saved to {file_caffenero_csv}.")
+# Save results to a JSON file
+with open(file_caffenero_json, 'w') as f:
+    json.dump(list, f, indent=2)
+print(f"Scraped {len(list)} items. Data saved to {file_caffenero_json}.")
