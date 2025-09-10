@@ -7,7 +7,7 @@ import scrapy
 class A20ChefbrewerSpider(scrapy.Spider):
     name = '20_ChefBrewer'
     allowed_domains = ['smartchef.co.uk']
-    start_urls = ['https://www.smartchef.co.uk/brands/ChefBrewer?siteid=6145']
+    start_urls = ['https://www.smartchef.co.uk/brands/ChefBrewer?siteid=6199']
 
     def parse(self, response):
         menus = response.xpath('//li[contains(@class, "nav-item")]/@id').getall()
