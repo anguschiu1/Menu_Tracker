@@ -9,18 +9,18 @@ from bs4 import BeautifulSoup  # already in requirements
 from define_collection_wave import folder
 from helpers import create_folder, PDFDownloader
 
-path_zizzi = create_folder('24_Zizzi', folder)
-file_zizzi_json = path_zizzi + '/zizzi_menu.json'
+path_ask = create_folder('25_Ask', folder)
+file_ask_json = path_ask + '/ask_menu.json'
 
-FULL_MENU_URL = 'https://www.zizzi.co.uk/menus/full-menu'
-MENUS_FROM_IDS_URL = 'https://www.zizzi.co.uk/wp-json/menus/get_menus_from_ids?ids={ids}'
-MENU_FROM_NAME_URL = 'https://www.zizzi.co.uk/wp-json/menus/get_menu_from_name?name={name}'
+FULL_MENU_URL = 'https://www.askitalian.co.uk/menus/full-menu'
+MENUS_FROM_IDS_URL = 'https://www.askitalian.co.uk/wp-json/menus/get_menus_from_ids?ids={ids}'
+MENU_FROM_NAME_URL = 'https://www.askitalian.co.uk/wp-json/menus/get_menu_from_name?name={name}'
+
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
 }
-
 
 def fetch(url: str, expect_json: bool = False) -> Any:
     """Helper to GET a URL with basic error handling."""
@@ -28,21 +28,40 @@ def fetch(url: str, expect_json: bool = False) -> Any:
     r.raise_for_status()
     return r.json() if expect_json else r.text
 
-def extract_pdf_urls(html: str) -> List[str]:
-    """Extract PDF URLs from the menu page HTML."""
-    soup = BeautifulSoup(html, 'html.parser')
-    pdf_urls = []
-    container = soup.find('div', class_='js-menus')
-    if not container:
-        print('No menu container found for PDF extraction')
-        return []
-    for data in ['data-allergen', 'data-ingredients', 'data-nutritional']:
-        if data:
-            # Find all URLs ending with .pdf using regex
-            url = container.get(data, '')
-            if url:
-                pdf_urls.extend(re.findall(r'https?://[^\s"\']+\.pdf', url))
-    return pdf_urls
+def find_pdf_urls(html: str) -> Optional[str]:
+    """Scan HTML for PDF URLs and download them."""
+    try:
+        soup = BeautifulSoup(html, 'html.parser')
+        target_key = 'ALLERGEN_INFO_LINKS_CONST'
+        extracted_lines = []
+        pdf_urls = []
+        for script in soup.find_all('script'):
+            script_text = script.string if script.string else script.get_text()
+            if not script_text or target_key not in script_text:
+                continue
+            for line in script_text.splitlines():
+                if target_key in line:
+                    clean_line = line.strip()
+                    extracted_lines.append(clean_line)
+        if extracted_lines:
+            print(f'Found {len(extracted_lines)} line(s) containing {target_key}:')
+            for line in extracted_lines:
+                print(f'  {line}')
+                raw_json = re.search(r'ALLERGEN_INFO_LINKS_CONST\s*=\s*`(.*?)`;', line).group(1)
+                print(f'Extracted JSON: {raw_json}')
+                data = json.loads(raw_json)
+                if isinstance(data, list) and data and isinstance(data[0], dict):
+                    link = data[0].get('link')
+                    if link:
+                      pdf_url = link.replace('\\/', '/')
+                      print(f'  Found allergen info link: {pdf_url}')
+                      pdf_urls.append(pdf_url)
+        else:
+          print('No script line found containing ALLERGEN_INFO_LINKS_CONST')
+        return pdf_urls
+    except Exception as se:
+          print(f'Error scanning script tags: {se}')
+
 def extract_menu_ids(html: str) -> List[str]:
     """Extract menu IDs from the data-menus attribute of the main container."""
     soup = BeautifulSoup(html, 'html.parser')
@@ -56,8 +75,9 @@ def extract_menu_ids(html: str) -> List[str]:
             return []
     else:
         raw = container.get('data-menus', '')
-    # raw expected like: [6597,6662,...]
+    # raw expected like: [4182,4448,4632,7102,5430]
     raw = raw.strip().strip('[]')
+    print(f'Extracted raw menu IDs: {raw}')
     if not raw:
         return []
     return [part.strip() for part in raw.split(',') if part.strip()]
@@ -96,7 +116,6 @@ def parse_menu_sections(menu_name: str, menu_data: Dict[str, Any]) -> List[Dict[
                 out.extend(build_item_records(collection_date, menu_name, section_title, items))
     return out
 
-
 def build_item_records(collection_date: str, menu_name: str, section_title: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
     for item in items:
@@ -105,61 +124,56 @@ def build_item_records(collection_date: str, menu_name: str, section_title: str,
         prices = (item.get('prices') or {}) if isinstance(item.get('prices'), dict) else {}
         record = {
             'collection_date': collection_date,
-            'rest_name': 'Zizzi',
+            'rest_name': 'ask',
             'menu_name': menu_name,
             'menu_section': section_title,
             'item_name': item.get('name'),
             'item_id': item.get('id'),
             'kcal': item.get('calorie_information'),
             'item_description': item.get('description'),
-            'price': prices.get('core_price_point'),
+            'price': prices.get('mid_price_point'),
             'dietary': item.get('dietary')
         }
         records.append(record)
     return records
 
+def crawl_ask_menu():
+  try:
+    print('Fetching full menu page...')
+    html = fetch(FULL_MENU_URL)
 
-def crawl_zizzi_menu():
-    try:
-        print('Fetching full menu page...')
-        html = fetch(FULL_MENU_URL)
+    # Scan <script> nodes for the allergen pdf url
+    pdf_urls = find_pdf_urls(html)
+    for pdf_url in pdf_urls:
+      filepath = path_ask + '/' + pdf_url.split('/')[-1]+'.pdf'
+      PDFDownloader(pdf_url, filepath)
+      print(f'Downloaded PDF from {pdf_url} to {filepath}...')
 
-        # Extract any embedded PDF URLs first and download them (if present)
-        pdf_urls = extract_pdf_urls(html)
-        if pdf_urls:
-            print(f'Found {len(pdf_urls)} PDF URL(s); downloading...')
-            for url in pdf_urls:
-                print(f'Found PDF URL {url}')
-                filepath = path_zizzi + '/' + url.split('/')[-1]
-                PDFDownloader(url, filepath)
-                print(f'Downloaded PDF to {filepath}')
-        else:
-            print('No PDF URLs found in page attributes.')
-
-        ids = extract_menu_ids(html)
-        print(f'Found {len(ids)} menu id(s)')
-        menu_names = fetch_menu_names(ids)
-        print(f'Found {len(menu_names)} menu name(s)')
-        results: List[Dict[str, Any]] = []
-        for name in menu_names:
-            try:
-                menu_data = fetch_menu(name)
-                if not menu_data:
-                    print(f'No data for menu {name}')
-                    continue
-                section_records = parse_menu_sections(name, menu_data)
-                print(f"Menu '{name}': {len(section_records)} item(s)")
-                results.extend(section_records)
-            except Exception as e:
-                print(f'Error processing menu {name}: {e}')
+    # Extract menu IDs and names, then fetch each menu and parse sections/items
+    ids = extract_menu_ids(html)
+    print(f'Found {len(ids)} menu id(s)')
+    menu_names = fetch_menu_names(ids)
+    print(f'Found {len(menu_names)} menu name(s)')
+    results: List[Dict[str, Any]] = []
+    for name in menu_names:
+        try:
+            menu_data = fetch_menu(name)
+            if not menu_data:
+                print(f'No data for menu {name}')
                 continue
-        # Save JSON
-        with open(file_zizzi_json, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f'Scraped {len(results)} items. Data saved to {file_zizzi_json}.')
-    except Exception as e:
-        print(f'Error during Zizzi scraping: {e}')
+            section_records = parse_menu_sections(name, menu_data)
+            print(f"Menu '{name}': {len(section_records)} item(s)")
+            results.extend(section_records)
+        except Exception as e:
+            print(f'Error processing menu {name}: {e}')
+            continue
+    # Save JSON
+    with open(file_ask_json, 'w') as f:
+        json.dump(results, f, indent=2)
+    print(f'Scraped {len(results)} items. Data saved to {file_ask_json}.')
+  except Exception as e:
+      print(f'Error during ask scraping: {e}')
 
 
 if __name__ == '__main__':
-    crawl_zizzi_menu()
+    crawl_ask_menu()
