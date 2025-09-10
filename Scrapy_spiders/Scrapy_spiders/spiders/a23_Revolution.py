@@ -11,7 +11,8 @@ class A23RevolutionSpider(scrapy.Spider):
     name = '23_Revolution'
     allowed_domains = ['www.revolution-bars.co.uk']
     # start_urls = ['https://www.revolution-bars.co.uk/bar/london-america-square/menus/food-menu/']
-    start_urls = ['https://www.revolution-bars.co.uk/bar/london-clapham-high-street/menus/food-menu/']
+    # start_urls = ['https://www.revolution-bars.co.uk/bar/london-clapham-high-street/menus/food-menu/']
+    start_urls = ['https://www.revolution-bars.co.uk/bar/cambridge/menus/food-menu']
     # 'https://www.revolution-bars.co.uk/bar/london-clapham-high-street/menus/brunch-menu/']
 
     def __init__(self):
