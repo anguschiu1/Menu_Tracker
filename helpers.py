@@ -289,6 +289,9 @@ def vue_PDF(rest_name, url, xpath_=None):
     
 # Download PDFs with Selenium
 def java_PDF(rest_name, url, prex=None, link_=True, xpath_=None, value='media'):
+    
+    driver = setup_driver()
+    
     print('1. source url: ' + url)
     path = create_folder(rest_name, folder)
 
