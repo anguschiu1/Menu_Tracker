@@ -20,7 +20,7 @@ beautifulsoup4==4.13.5
 # itemloaders==1.0.4
 # iteration-utilities==0.11.0
 # jmespath==0.10.0
-# lxml==5.3.1
+lxml==6.0.1
 # numpy==2.2.3
 # outcome==1.1.0
 pandas==2.3.2

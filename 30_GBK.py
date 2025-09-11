@@ -135,5 +135,9 @@ for entry in data_store:
 df = pd.DataFrame(data_store)
 if os.path.exists(path_GBK + '/30_GBK_items.csv'):
     df.to_csv(path_GBK + '/30_GBK_items.csv', header=False, index=False, mode='a')
+    print("File appended")
 else:
     df.to_csv(path_GBK + '/30_GBK_items.csv', header=True, index=False, mode='a')
+    print("File created")
+    
+print(f"Scraped {len(data_store)} items. Data saved to {path_GBK}/30_GBK_items.csv.")
