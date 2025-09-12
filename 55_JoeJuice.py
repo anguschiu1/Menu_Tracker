@@ -1,168 +1,169 @@
-import requests
-import json
-import pandas as pd
 import os
-from datetime import date, time
+import json
+from datetime import date
+from time import sleep
+from typing import Dict, List, Tuple
+
+import requests
+import pandas as pd
 
 from define_collection_wave import folder
 from helpers import create_folder
-path_JoeJuice = create_folder('55_JoeJuice', folder) + '/55_JoeJuice_items.csv'
 
 
-class JoeJuice:
-    def __init__(self):
-        self.headers = {
-            'accept': 'application/json, text/plain, */*',
-            'accept-language': 'en-US,en;q=0.9,en-IN;q=0.8',
-            'origin': 'https://www.joejuice.com',
-            'referer': 'https://www.joejuice.com/',
-            'sec-ch-ua': '"Chromium";v="130", "Microsoft Edge";v="130", "Not?A_Brand";v="99"',
-            'sec-ch-ua-mobile': '?1',
-            'sec-ch-ua-platform': '"Android"',
-            'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 Edg/130.0.0.0',
-            'x-joe-web': 'true',
-            'x-joeloyalty-version': '2.7.0',
-        }
+# Basic config
+REST_NAME = 'JOE & THE JUICE'
+STORE_ID = '186f925b-8932-4195-8e67-6e5d01b8bfc2'
+BASE_LAYOUT_URL = 'https://joepay-api.joejuice.com/me/products/layout'
+BASE_PRODUCT_URL = 'https://joepay-api.joejuice.com/me/products'
+BASE_STORE_URL = f'https://joepay-api.joejuice.com/me/stores/{STORE_ID}'
 
-        self.params = {
-            # 'storeId': '5f871bf1-b0d1-4e2a-ac84-31047281cde9',
-            'storeId': '186f925b-8932-4195-8e67-6e5d01b8bfc2',
-            'type': 'all',
-        }
+HEADERS = {
+    'accept': 'application/json, text/plain, */*',
+    'accept-language': 'en-US,en;q=0.9,en-IN;q=0.8',
+    'origin': 'https://www.joejuice.com',
+    'referer': 'https://www.joejuice.com/',
+    'sec-ch-ua': '"Chromium";v="130", "Microsoft Edge";v="130", "Not?A_Brand";v="99"',
+    'sec-ch-ua-mobile': '?1',
+    'sec-ch-ua-platform': '"Android"',
+    'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 Edg/130.0.0.0',
+    'x-joe-web': 'true',
+    'x-joeloyalty-version': '2.7.0',
+}
 
-        self.base_url = 'https://joepay-api.joejuice.com/me/products/layout'
-        self.data_store = []
+# Outputs
+path_out = create_folder('55_JoeJuice', folder)
+file_json = os.path.join(path_out, 'joejuice_items.json')
+file_csv = os.path.join(path_out, 'joejuice_items.csv')
 
-    def scrape(self):
-        response = requests.get(self.base_url, params=self.params, headers=self.headers)
-        all_categories = json.loads(response.text)
-        print(f"Total categories: {len(all_categories)}")
-        for category in all_categories:
-            category_name = category['name']
-            print(f"Processing category: {category_name}")
-            products = category.get('tiles', [])
-
-            for product in products:
-                product_name = product.get('name', '')
-                product_description = product.get('description', '')
-                product_price = product.get('priceRange', '')
-                if isinstance(product_price,list):
-                    product_price = product_price[0]
-                ingredients = product.get('ingredients', [])
-                if not ingredients:
-                    continue
-
-                product_id = product.get('id', '')
-                nutrition, allergens = self.get_product_details(product_id)
-
-                data = {
-                    'collection_date': date.today().strftime("%b-%d-%Y"),
-                    'rest_name': 'JOE & THE JUICE',
-                    'category_name': category_name,
-                    'product_name': product_name,
-                    'product_description': product_description,
-                    'product_price': product_price,
-                    **nutrition,
-                    **allergens,
-                }
-                self.data_store.append(data)
-
-        self.save_to_csv()
-
-    def get_product_details(self, product_id):
-        nutrition = {}
-        allergens = {}
-        max_retries = 3
-        retry_delay = 2  # seconds
-
-        each_product_params = {
-            # 'storeId': '5f871bf1-b0d1-4e2a-ac84-31047281cde9',
-            'storeId': '186f925b-8932-4195-8e67-6e5d01b8bfc2',
-        }
-        for attempt in range(max_retries):
-            try:
-                ingredient_response = requests.get(
-                    f'https://joepay-api.joejuice.com/me/products/{product_id}',
-                    params=each_product_params,
-                    headers=self.headers
-                )
-                product_details = json.loads(ingredient_response.text)
-                ingredients = product_details['productVariants'][0].get('ingredients', [])
-                break
-            except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-                print(f"Attempt {attempt + 1} failed for product {product_id}: {e}")
-                if attempt < max_retries - 1:
-                    print(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                else:
-                    print(f"Max retries exceeded for product {product_id}. Skipping.")
-                    return nutrition, allergens  # Return empty dictionaries on failure
-
-        # Nutrition data
-        nutrition_data = [{'id': ing['id'], 'ingredientAmount': ing['ingredientAmount']} for ing in ingredients]
-        for attempt in range(max_retries):
-            try:
-
-                nutrition_response = requests.post(
-                    f'https://joepay-api.joejuice.com/me/stores/{self.params["storeId"]}/ingredients/nutrition',
-                    headers=self.headers,
-                    json=nutrition_data
-                )
-                nutrition_result = json.loads(nutrition_response.text).get('data', [])
-                for nutrient in nutrition_result:
-                    nutrition[nutrient['name']] = nutrient['value']
-                break
-            except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-                print(f"Attempt {attempt + 1} failed for nutrition data: {e}")
-                if attempt < max_retries - 1:
-                    print(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                else:
-                    print(f"Max retries exceeded for nutrition data. Skipping.")
-                    return nutrition, allergens
- 
+session = requests.Session()
 
 
-        # Allergen data
-        for attempt in range(max_retries):
-            try:
-                allergen_data = [{'id': ing['id']} for ing in ingredients]
-                allergen_response = requests.post(
-                    f'https://joepay-api.joejuice.com/me/stores/{self.params["storeId"]}/ingredients/allergens',
-                    headers=self.headers,
-                    json=allergen_data
-                )
-                allergen_result = json.loads(allergen_response.text)
-                for allergen in allergen_result:
-                    allergens[allergen['name']] = allergen.get('degree', 'None')
-                break
-            except (requests.exceptions.RequestException,json.JSONDecodeError) as e:
-                print(f"Attempt {attempt + 1} failed for allergen data: {e}")
-                if attempt < max_retries - 1:
-                    print(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                else:
-                    print(f"Max retries exceeded for allergen data. Skipping.")
-                    return nutrition, allergens
+def fetch_layout() -> List[Dict]:
+    params = {'storeId': STORE_ID, 'type': 'all'}
+    resp = session.get(BASE_LAYOUT_URL, params=params, headers=HEADERS, timeout=30)
+    resp.raise_for_status()
+    try:
+        return resp.json()
+    except Exception:
+        return json.loads(resp.text)
 
-    def save_to_csv(self):
-        # output_dir = '55_JoeJuice_Output'
-        # os.makedirs(output_dir, exist_ok=True)
-        # output_file = os.path.join(output_dir, '55_JoeJuice.csv')
-        #
-        # df = pd.DataFrame(self.data_store)
-        # if os.path.exists(output_file):
-        #     df.to_csv(output_file, header=False, index=False, mode='a')
-        # else:
-        #     df.to_csv(output_file, header=True, index=False, mode='w')
 
-        df = pd.DataFrame(self.data_store)
-        if os.path.exists(path_JoeJuice):
-            df.to_csv(path_JoeJuice, header=False, index=False, mode='a')
-        else:
-            df.to_csv(path_JoeJuice, header=True, index=False, mode='a')
+def get_product_details(product_id: str, max_retries: int = 3, retry_delay: int = 2) -> Tuple[Dict[str, str], Dict[str, str]]:
+    nutrition: Dict[str, str] = {}
+    allergens: Dict[str, str] = {}
+
+    # 1) Fetch ingredients list for the product variant
+    params = {'storeId': STORE_ID}
+    ingredients: List[Dict] = []
+    for attempt in range(max_retries):
+        try:
+            r = session.get(f'{BASE_PRODUCT_URL}/{product_id}', params=params, headers=HEADERS, timeout=30)
+            r.raise_for_status()
+            details = r.json()
+            ingredients = (details.get('productVariants') or [{}])[0].get('ingredients', [])
+            break
+        except Exception as e:
+            print(f'Attempt {attempt + 1} failed for product {product_id}: {e}')
+            if attempt < max_retries - 1:
+                print(f'Retrying in {retry_delay} seconds...')
+                sleep(retry_delay)
+            else:
+                return nutrition, allergens
+
+    if not ingredients:
+        return nutrition, allergens
+
+    # 2) Nutrition
+    nutrition_data = [{'id': ing['id'], 'ingredientAmount': ing.get('ingredientAmount')} for ing in ingredients]
+    for attempt in range(max_retries):
+        try:
+            r = session.post(f'{BASE_STORE_URL}/ingredients/nutrition', headers=HEADERS, json=nutrition_data, timeout=30)
+            r.raise_for_status()
+            data = r.json().get('data', [])
+            for n in data:
+                name = n.get('name')
+                val = n.get('value')
+                if name:
+                    nutrition[name] = val
+            break
+        except Exception as e:
+            print(f'Attempt {attempt + 1} failed for nutrition data: {e}')
+            if attempt < max_retries - 1:
+                print(f'Retrying in {retry_delay} seconds...')
+                sleep(retry_delay)
+
+    # 3) Allergens
+    allergen_data = [{'id': ing['id']} for ing in ingredients]
+    for attempt in range(max_retries):
+        try:
+            r = session.post(f'{BASE_STORE_URL}/ingredients/allergens', headers=HEADERS, json=allergen_data, timeout=30)
+            r.raise_for_status()
+            arr = r.json()
+            for a in arr:
+                nm = a.get('name')
+                deg = a.get('degree', 'None')
+                if nm:
+                    allergens[nm] = deg
+            break
+        except Exception as e:
+            print(f'Attempt {attempt + 1} failed for allergen data: {e}')
+            if attempt < max_retries - 1:
+                print(f'Retrying in {retry_delay} seconds...')
+                sleep(retry_delay)
+
+    return nutrition, allergens
+
+
+def build_records(categories: List[Dict]) -> List[Dict]:
+    records: List[Dict] = []
+    today = date.today().strftime('%b-%d-%Y')
+    for cat in categories:
+        category_name = cat.get('name')
+        products = cat.get('tiles', [])
+        for product in products:
+            product_id = product.get('id')
+            product_name = product.get('name', '')
+            product_description = product.get('description', '')
+            product_price = product.get('priceRange', '')
+            if isinstance(product_price, list):
+                product_price = product_price[0] if product_price else ''
+
+            # Filter as in original: only proceed if product tile has ingredients key
+            if not product.get('ingredients'):
+                continue
+
+            nutrition, allergens = get_product_details(product_id)
+
+            base: Dict[str, str] = {
+                'collection_date': today,
+                'rest_name': REST_NAME,
+                'menu_section': category_name,
+                'item_name': product_name,
+                'item_description': product_description,
+                'product_price': product_price,
+            }
+            base.update(nutrition)
+            base.update(allergens)
+            records.append(base)
+    return records
+
+
+def crawl_joejuice():
+    categories = fetch_layout()
+    print(f'Total categories: {len(categories)}')
+    records = build_records(categories)
+
+    with open(file_json, 'w') as f:
+        json.dump(records, f, indent=2)
+    try:
+        pd.DataFrame(records).to_csv(file_csv, index=False)
+    except Exception as e:
+        print(f'CSV export failed: {e}')
+    print(f'Scraped {len(records)} items.')
+    print(f'Saved: {file_json}')
+    print(f'Saved: {file_csv}')
 
 
 if __name__ == '__main__':
-    scraper = JoeJuice()
-    scraper.scrape()
+    crawl_joejuice()
