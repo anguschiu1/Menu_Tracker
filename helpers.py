@@ -195,6 +195,11 @@ def PDFDownloader(url, filePath, verif=True):
     :return: saves the PDF file
     '''
     r = requests.get(url, stream=True, verify=verif, headers=headers)
+    if r.status_code != 200:
+        print(f'PDFDownloader: Error {r.status_code} for {url}')
+        return
+    print(f'PDFDownloader: Downloading PDF for {url}')
+    print(f'PDFDownloader: file size {r.headers.get("Content-Length", "unknown")} bytes')
     with open(filePath, "wb") as pdf:
         for chunk in r.iter_content(chunk_size=1024):
             # writing one chunk at a time to a pdf file
@@ -217,6 +222,9 @@ def combo_PDFDownload(rest_name, url, keyword='pdf', prex=None, verify=True):
     print(f'html: {html}')
     soup = BeautifulSoup(html.text, 'html.parser')
     urls = soup.select(f"a[href*={keyword}]")
+    if not urls:
+        print(f'No PDF links found for {rest_name} at {url}')
+        return
     for url in urls:
         print(url)
         url_link = url.get('href')
