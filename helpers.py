@@ -272,74 +272,98 @@ def combo_PDFDownload_class_name(rest_name, url, keyword='pdf', prex=None, verif
         PDFDownloader(url=url_link, filePath=filePath)
     print('finished downloading pdfs for ' + rest_name)
 
-# download PDFs with selenium 
-def vue_PDF(rest_name, url, xpath_=None):
-    path = create_folder(rest_name, folder)
-    s = Service(web_browser_path)
-    browser = webdriver.Chrome(service=s)
-    browser.get(url)
-    sleep(10)  
-    links = [link.get_attribute('href') for link in
-                    browser.find_elements(by=By.XPATH, value=xpath_)]
-    for link in links:
-        filename = link.split('/')[-1] 
-        if filename[-3:] != 'pdf':
-            if '.pdf' in filename: 
-                filename = filename.split('?')[0]
-                print(filename)
-            else: 
-                filename = filename + '.pdf'
-        filePath = os.path.join(path,  filename) # path to save the PDF file
-        print(link)
-        print(filePath)
-        PDFDownloader(url=link, filePath=filePath)
-
+# Download PDFs with Selenium - unified function replacing vue_PDF and java_PDF
+def selenium_PDF(rest_name, url, xpath_=None, prefix=None, use_partial_link_text=False, 
+                 partial_link_value='Download', navigate_to_links=False, wait_time=5):
+    """
+    Download PDFs using Selenium with flexible link discovery options.
     
-# Download PDFs with Selenium
-def java_PDF(rest_name, url, prex=None, link_=True, xpath_=None, value='media'):
-    
+    Args:
+        rest_name: Restaurant name for folder creation
+        url: Source URL to scrape
+        xpath_: XPath selector for finding PDF links (when use_partial_link_text=False)
+        prefix: URL prefix to prepend to relative links
+        use_partial_link_text: If True, use PARTIAL_LINK_TEXT instead of XPath
+        partial_link_value: Text to search for when use_partial_link_text=True
+        navigate_to_links: If True, navigate to each link to get final URL
+        wait_time: Seconds to wait between operations
+    """
     driver = setup_driver()
     
-    print('1. source url: ' + url)
-    path = create_folder(rest_name, folder)
+    try:
+        print(f'1. Source URL: {url}')
+        path = create_folder(rest_name, folder)
+        
+        print(f'2. Browsing: {url}')
+        driver.get(url)
+        sleep(wait_time)
+        
+        # Find PDF links using specified strategy
+        if use_partial_link_text:
+            print(f'3. Finding links by partial text: {partial_link_value}')
+            links = [link.get_attribute('href') for link in
+                    driver.find_elements(By.PARTIAL_LINK_TEXT, partial_link_value)]
+        else:
+            print(f'3. Finding links by XPath: {xpath_}')
+            links = [link.get_attribute('href') for link in
+                    driver.find_elements(By.XPATH, xpath_)]
+        
+        print(f'4. Found {len(links)} PDF links')
+        
+        for i, link in enumerate(links):
+            if not link:
+                continue
+                
+            # Navigate to link to get final URL if requested
+            if navigate_to_links:
+                print(f'5.{i+1} Navigating to: {link}')
+                driver.get(link)
+                link = driver.current_url
+                sleep(wait_time)
+            
+            # Handle relative URLs
+            if prefix and 'https://' not in link and 'http://' not in link:
+                if not link.startswith('/'):
+                    link = '/' + link
+                link = prefix + link
+            
+            # Process filename
+            filename = link.split('/')[-1]
+            if not filename.endswith('.pdf'):
+                if '.pdf' in filename:
+                    filename = filename.split('?')[0]
+                else:
+                    filename = filename + '.pdf'
+            filename = filename.replace(':', '').replace('?', '')
+            
+            file_path = os.path.join(path, filename)
+            print(f'6.{i+1} Downloading: {link} -> {file_path}')
+            PDFDownloader(url=link, filePath=file_path)
+        
+        print(f'7. Finished downloading PDFs for {rest_name}')
+        
+    finally:
+        driver.quit()
 
-    print('2. Browsing: ' + url)
-    driver.get(url)
-    
-    # sleep(10)
-    
-    # links that contain PDF
-    # print(f'browser data: {browser.page_source}')
-    print(f'3. link_: {link_}')
-    if link_:
-        links = [link.get_attribute('href') for link in
-                    driver.find_elements(by=By.PARTIAL_LINK_TEXT, value='Download')]
-    else:
-        links = [link.get_attribute('href') for link in
-                    driver.find_elements(by=By.XPATH, value=xpath_)]
-    print(f'4. links: {", ".join(map(str, links))}')
-    for url_link in links:
-        print('5. Browsing: ' + url_link)
-        driver.get(url_link)
-        url_link = driver.current_url
-        sleep(5)
-        if 'https://' not in url_link and 'http://' not in url_link:
-            if url_link[0] != '/':
-                url_link = '/' + url_link
-            url_link = prex + url_link
-        filename = url_link.split('/')[-1] 
-        if filename[-3:] != 'pdf':
-            if '.pdf' in filename: 
-                filename = filename.split('?')[0]
-                print(filename)
-            else: 
-                filename = filename + '.pdf'
-        filePath = os.path.join(path,  filename) # path to save the PDF file
-        print(url_link)
-        print(filePath)
-        PDFDownloader(url=url_link, filePath=filePath)
-    print(f'6. finished downloading pdfs for {rest_name}')
-    driver.quit()
+
+# Legacy functions for backward compatibility
+def vue_PDF(rest_name, url, xpath_=None):
+    """Legacy function - use selenium_PDF instead"""
+    return selenium_PDF(rest_name, url, xpath_=xpath_, wait_time=10)
+
+
+def java_PDF(rest_name, url, prex=None, link_=True, xpath_=None, value='media'):
+    """Legacy function - use selenium_PDF instead"""
+    return selenium_PDF(
+        rest_name=rest_name,
+        url=url,
+        prefix=prex,
+        use_partial_link_text=link_,
+        partial_link_value=value if value else 'Download',
+        xpath_=xpath_,
+        navigate_to_links=True,
+        wait_time=5
+    )
 
 def IMGDownloader(url, filePath):
     opener = urllib.request.build_opener()
