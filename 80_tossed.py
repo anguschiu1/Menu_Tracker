@@ -1,107 +1,158 @@
 import requests
 import json
 import pandas as pd
-from lxml import html
-from datetime import  date
+from datetime import date
 import os
 
 from define_collection_wave import folder
 from helpers import create_folder
 
-tossed_path = create_folder('80_Tossed', folder)
+# Outputs (mirror MorrisonsCafe structure)
+path_out = create_folder('80_Tossed', folder)
+file_json = os.path.join(path_out, 'tossed_items.json')
+file_jsonl = os.path.join(path_out, 'tossed_items_JSONL.json')
+file_csv = os.path.join(path_out, 'tossed_items.csv')
 
 
-data_store = []
+def get_headers() -> dict:
+    """Headers required by Tossed VMOS API. Kept explicit to ensure API returns data."""
+    return {
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'en-US,en;q=0.9',
+        'cache-control': 'no-store, max-age=0',
+        'locale': 'null',
+        'menu': '642a94ec-bea1-42a2-8ed1-79225c70aad6',
+        'origin': 'https://tosseduk.vmos.io',
+        'pragma': 'no-cache',
+        'priority': 'u=1, i',
+        'referer': 'https://tosseduk.vmos.io/',
+        'sec-ch-ua': '"Chromium";v="130", "Not?A_Brand";v="99"',
+        'sec-ch-ua-mobile': '?1',
+        'sec-ch-ua-platform': '"Android"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site',
+        'store': '34412cca-f374-497a-be27-f134e7693c34',
+        'tenant': '87a1a7de-18ef-4dcf-b105-45105792347a',
+        'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+        'x-requested-from': 'online',
+    }
 
-all_keys = set()
 
-class Tossed:
-    def __init__(self):
-        self.headers = {
-            'accept': 'application/json, text/plain, */*',
-            'accept-language': 'en-US,en;q=0.9,en-IN;q=0.8',
-            'cache-control': 'no-store, max-age=0',
-            'locale': 'null',
-            'menu': '642a94ec-bea1-42a2-8ed1-79225c70aad6',
-            'origin': 'https://tosseduk.vmos.io',
-            'pragma': 'no-cache',
-            'priority': 'u=1, i',
-            'referer': 'https://tosseduk.vmos.io/',
-            'sec-ch-ua': '"Chromium";v="130", "Microsoft Edge";v="130", "Not?A_Brand";v="99"',
-            'sec-ch-ua-mobile': '?1',
-            'sec-ch-ua-platform': '"Android"',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'same-site',
-            'store': '34412cca-f374-497a-be27-f134e7693c34',
-            'tenant': '87a1a7de-18ef-4dcf-b105-45105792347a',
-            'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 Edg/130.0.0.0',
-            'x-requested-from': 'online',
-        }
-        self.menu_url = 'https://vmos2.vmos.io/catalog/v2/menu'
+def clean_html(text: str) -> str:
+    if not isinstance(text, str):
+        return ''
+    return (
+        text.replace('<p>', '')
+        .replace('</p>', '')
+        .replace('&nbsp;', ' ')
+        .replace('&amp;', '&')
+        .replace('\n', ' ')
+        .replace('<br>', ' ')
+        .strip()
+    )
 
-    def scrape(self):
-        menu_response = requests.get(self.menu_url , headers=self.headers)
-        json_response_menu = json.loads(menu_response.content)
-        all_menus = json_response_menu['payload'][0]['categories']
-        for menus in all_menus:
-            uuid = menus['uuid']
-            menu_name = menus['name']
-            product_request_url = requests.get(f'https://vmos2.vmos.io/catalog/categories/{uuid}/bundles',headers=self.headers)
-            products_json_response = json.loads(product_request_url.content)
+
+def extract_kcal(nutritional: dict) -> int | None:
+    """Attempt to extract kcal value from various possible keys."""
+    if not isinstance(nutritional, dict):
+        return None
+    for key in ['kcal', 'Kcal', 'kCal', 'calories', 'Calories', 'energyKcal', 'energy_kcal']:
+        if key in nutritional and nutritional[key] not in (None, ''):
             try:
-                all_categories = products_json_response['payload']['categories']
-            except:
-                all_categories = []
+                return int(float(str(nutritional[key]).replace(',', '').strip()))
+            except Exception:
+                return None
+    return None
 
-            if all_categories:
-                for category in all_categories:
-                    all_products = category['bundles']
-                    self.product_fn(all_products,menu_name)
-            else:
-                all_products_1 = products_json_response['payload']['bundles']
-                self.product_fn(all_products_1,menu_name)
 
-        df = pd.DataFrame(data_store)
-        if os.path.exists(tossed_path+ '/80_tossed1.csv'):
-            df.to_csv(tossed_path+ '/80_tossed1.csv', header=False, index=False, mode='a')
+def fetch_menu_categories(headers: dict) -> list:
+    menu_url = 'https://vmos2.vmos.io/catalog/v2/menu'
+    resp = requests.get(menu_url, headers=headers)
+    data = resp.json()
+    return data.get('payload', [{}])[0].get('categories', [])
+
+
+def fetch_category_bundles(cat_uuid: str, headers: dict) -> dict:
+    url = f'https://vmos2.vmos.io/catalog/categories/{cat_uuid}/bundles'
+    resp = requests.get(url, headers=headers)
+    return resp.json().get('payload', {})
+
+
+def build_items() -> list[dict]:
+    headers = get_headers()
+    items: list[dict] = []
+
+    categories = fetch_menu_categories(headers)
+    print(f"Found {len(categories)} menu categories")
+
+    for cat in categories:
+        cat_uuid = cat.get('uuid')
+        menu_name = cat.get('name') or ''
+        if not cat_uuid:
+            continue
+        payload = fetch_category_bundles(cat_uuid, headers)
+        categories_payload = payload.get('categories') or []
+
+        bundles_lists = []
+        if categories_payload:
+            for subcat in categories_payload:
+                bundles_lists.append(subcat.get('bundles') or [])
         else:
-            df.to_csv(tossed_path+ '/80_tossed1.csv', header=True, index=False, mode='a')
+            bundles_lists.append(payload.get('bundles') or [])
 
-    def product_fn(self,all_products,menu_name):
-        global all_keys, data_store
-        for product in all_products:
-            try:
-                product_name = product['name']
-            except:
-                product_name = ''
+        for bundles in bundles_lists:
+            for product in bundles or []:
+                product_name = product.get('name', '')
+                item_id = product.get('uuid') or product.get('id')
+                desc = clean_html(product.get('description', ''))
+                # Pull first item variant if present
+                first_item = None
+                items_list = product.get('items') or []
+                if isinstance(items_list, list) and items_list:
+                    first_item = items_list[0]
+                nutritional = (first_item or {}).get('nutritionalMeta') or {}
+                price = (
+                    (first_item or {}).get('price')
+                    or (first_item or {}).get('basePrice')
+                    or product.get('price')
+                    or product.get('basePrice')
+                )
+                kcal = extract_kcal(nutritional)
 
-            try:
-                product_description = product['description'].replace('<p>','').replace('</p>','').replace('&nbsp;',' ').replace('&amp;','').replace('\n','').replace('<br>','').strip()
-            except:
-                product_description = ''
-            try:
-                nutritionalMeta = product['items'][0]['nutritionalMeta']
-            except:
-                nutritionalMeta = ''
-            data = {}
-            data.update({
-                'rest_name': 'Tossed',
-                'collection_date': date.today().strftime("%b-%d-%Y"),
-                'menu_section': menu_name,
-                'item_name' : product_name,
-                'item_description' : product_description,
-            })
-            all_keys.update(nutritionalMeta.keys())
-            ne = {key: nutritionalMeta.get(key, None) for key in all_keys}
+                row = {
+                    'collection_date': date.today().strftime('%b-%d-%Y'),
+                    'rest_name': 'Tossed',
+                    'menu_section': menu_name,
+                    'item_name': product_name,
+                    'item_id': item_id,
+                    'price': price,
+                    'kcal': kcal,
+                    'item_description': desc,
+                }
+                # Also include raw nutritional keys for richness
+                if isinstance(nutritional, dict):
+                    for k, v in nutritional.items():
+                        # don't overwrite canonical kcal if present
+                        if k.lower() == 'kcal' and row.get('kcal') is not None:
+                            continue
+                        row[k] = v
+                items.append(row)
 
-            data.update(ne)
-            print(data)
+    return items
 
-            data_store.append(data)
 
+def save_outputs(items: list[dict]):
+    df = pd.DataFrame(items)
+    df.to_csv(file_csv, index=False)
+    df.to_json(file_json, orient='records')
+    df.to_json(file_jsonl, orient='records', lines=True)
+    print(f"Scraped {len(items)} items.")
+    print(f"Saved: {file_json}")
+    print(f"Saved: {file_jsonl}")
+    print(f"Saved: {file_csv}")
 
 
 if __name__ == '__main__':
-    web_scrape = Tossed()
-    web_scrape.scrape()
+    items = build_items()
+    save_outputs(items)
