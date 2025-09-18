@@ -374,11 +374,14 @@ def IMGDownloader(url, filePath):
 
 def combo_imgDownload(rest_name,url,folder):
     path = create_folder(rest_name, folder)
-    s = Service(web_browser_path)
-    browser = webdriver.Chrome(service=s)
-    browser.get(url)
+    # s = Service(web_browser_path)
+    # browser = webdriver.Chrome(service=s)
+    # browser.get(url)
+    driver = setup_driver()
+    driver.get(url)
+
     sleep(10)
-    images = browser.find_elements(by=By.XPATH, value='//img[contains(@src, "jpg")]')
+    images = driver.find_elements(by=By.XPATH, value='//img[contains(@src, "jpg")]')
     for image in images:
         image_link = image.get_attribute("src")
         print(image_link)
