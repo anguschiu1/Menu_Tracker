@@ -2,7 +2,7 @@ import json
 import os
 import re
 from datetime import date
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,17 +11,15 @@ import pandas as pd
 from define_collection_wave import folder
 from helpers import create_folder
 
-REST_NAME = "Yo Sushi"
-BASE_START = "https://menus.tenkites.com/yosushi/kiosk02"
-# Ten Kites often uses XX03 for landing and XX02 for menu pages; include candidates
+REST_NAME = "YO! Sushi"
+# Use allergen page as landing for GUID discovery; menu content also available on /yosushi/yosushi
+BASE_URL = "https://menus.tenkites.com/yosushi/kiosk02"
+# Candidate URL builders tried per mguid (Ten Kites query flags vary by tenant)
 CANDIDATE_MENU_URLS = [
-    # Primary: site indicates mguid param on the same path
-    lambda g: f"{BASE_START}?mguid={g}",
-    # Variant with cl=true (common flag on Ten Kites)
-    lambda g: f"{BASE_START}?cl=true&mguid={g}",
-    # Internal widget render often returns fully expanded markup server-side
-    lambda g: f"{BASE_START}?internalrequest=true&mguid={g}",
-    lambda g: f"{BASE_START}?internalrequest=true&cl=true&mguid={g}",
+    lambda g: f"{BASE_URL}?mguid={g}",
+    lambda g: f"{BASE_URL}?cl=true&mguid={g}",
+    lambda g: f"{BASE_URL}?internalrequest=true&mguid={g}",
+    lambda g: f"{BASE_URL}?internalrequest=true&cl=true&mguid={g}",
 ]
 
 HEADERS = {
@@ -39,74 +37,52 @@ file_csv = os.path.join(path_out, "yosushi_tesco_items.csv")
 
 
 def fetch_html(url: str) -> str:
+    """GET a URL and return text, raising for HTTP errors."""
     resp = requests.get(url, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     return resp.text
 
 
 def get_menu_guids(home_html: str) -> List[str]:
-    """Extract Ten Kites menu GUIDs from the landing page.
-    Common patterns:
-    - .k10-menu-selector__option[data-menu-identifier]
-    - Generic data-menu-identifier attributes
-    - Regex as last resort
-    """
+    """Extract Ten Kites mguid values from the landing page by common selectors or regex."""
     soup = BeautifulSoup(home_html, "html.parser")
-    guids: List[str] = []
-
-    for node in soup.select(".k10-menu-selector__option[data-menu-identifier]"):
-        mguid = node.get("data-menu-identifier")
-        if mguid:
-            guids.append(mguid.strip())
-
-    if not guids:
-        for node in soup.find_all(attrs={"data-menu-identifier": True}):
-            mguid = node.get("data-menu-identifier")
-            if mguid:
-                guids.append(mguid.strip())
-
-    if not guids:
-        guids = re.findall(r'data-menu-identifier\s*=\s*"([^"]+)"', home_html)
-
-    # Deduplicate preserve order
-    seen: Set[str] = set()
-    uniq = []
-    for g in guids:
+    found = [
+        n.get("data-menu-identifier")
+        for n in soup.select(".k10-menu-selector__option[data-menu-identifier], [data-menu-identifier]")
+        if n.get("data-menu-identifier")
+    ]
+    if not found:
+        found = re.findall(r'data-menu-identifier\s*=\s*"([^"]+)"', home_html)
+    # Deduplicate preserving order
+    seen: Set[str] = set(); guids: List[str] = []
+    for g in found:
         if g and g not in seen:
-            seen.add(g)
-            uniq.append(g)
-    return uniq
+            seen.add(g); guids.append(g)
+    return guids
 
 
 def text_or_none(el) -> Optional[str]:
+    """Return element text or None if missing/empty."""
     if not el:
         return None
     t = el.get_text(strip=True)
     return t if t else None
 
 def sanitize_key(s: str) -> str:
+    """Normalize strings to safe snake_case keys."""
     s = s.strip().lower()
     s = re.sub(r"[^a-z0-9]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
     return s
 
 
-"""Removed table/grid fallback parsing to keep implementation concise and widget-focused."""
-
-
 def parse_menu_page(html_text: str) -> List[Dict]:
-    """Parse one Ten Kites menu page into records.
-    This variant is tuned for Yo!Sushi where nutrition is presented in tables.
-    It will:
-      1) Iterate course/section containers and parse any tables within as row items
-      2) If no sections or no rows found, parse all top-level tables on the page similarly
-      3) As a last fallback, attempt the grid-item approach used by Bills
+    """Parse Ten Kites recipe cards within sections into item records.
+    Extracts: section, name, description, inline price/nutrients, labels and allergens (heuristic).
     """
     soup = BeautifulSoup(html_text, "html.parser")
-
     all_records: List[Dict] = []
 
-    # 0) Ten Kites widget recipe-card parsing (desktop view). Avoid duplicates by excluding mobile variant.
     # Courses/sections
     courses = soup.select("div.k10-course.k10-w-course, div.k10-course_l1.k10-w-course, div.k10-course")
     for course in courses:
@@ -116,9 +92,7 @@ def parse_menu_page(html_text: str) -> List[Dict]:
             or text_or_none(course.select_one(".k10-w-course__name"))
             or text_or_none(course.select_one(".k10-course__name"))
         )
-        recipes = course.select(
-            "div.k10-w-recipe.k10-recipe_menu-item.k10-w-recipe__info, div.k10-recipe.k10-w-recipe.k10-recipe_menu-item.k10-w-recipe__info"
-        )
+        recipes = course.select("div.k10-w-recipe.k10-recipe_menu-item.k10-w-recipe__info, div.k10-recipe.k10-w-recipe.k10-recipe_menu-item.k10-w-recipe__info")
         for r in recipes:
             name = (
                 text_or_none(r.select_one("span.k10-w-recipe__name"))
@@ -207,23 +181,26 @@ def parse_menu_page(html_text: str) -> List[Dict]:
                     rec.update(nutrients_raw)
                 all_records.append(rec)
 
-    # Removed additional fallbacks for brevity
-
     return all_records
 
 
+def parse_jsonld(html_text: str) -> List[Dict]:
+    # JSON-LD parsing removed by request; this function is no longer used.
+    return []
+
+
 def crawl_yosushi() -> List[Dict]:
-    print("Fetching Yo!Sushi Tesco Kiosk landing page...")
-    home = fetch_html(BASE_START)
+    """Orchestrate YO! Sushi scrape: discover mguid, fetch candidate pages, parse DOM only."""
+    print("Fetching YO! Sushi Tesco Kiosk landing page...")
+    home = fetch_html(BASE_URL)
     guids = get_menu_guids(home)
     print(f"Found {len(guids)} menu GUIDs")
 
     all_records: List[Dict] = []
     if not guids:
-        # Many Ten Kites instances also render a default menu if no mguid is chosen
-        # Attempt to parse the landing page directly as a fallback
-        print("No GUIDs found; parsing landing page as single menu")
-        all_records.extend(parse_menu_page(home))
+        print("No GUIDs found; parsing landing page as single menu (DOM)")
+        parsed = parse_menu_page(home)
+        all_records.extend(parsed)
         return all_records
 
     for g in guids:
@@ -235,6 +212,7 @@ def crawl_yosushi() -> List[Dict]:
             try:
                 html_text = fetch_html(url)
                 last_html = html_text
+                # DOM-only parsing
                 recs_for_candidate = parse_menu_page(html_text)
                 if recs_for_candidate:
                     recs_for_guid = recs_for_candidate
@@ -256,7 +234,16 @@ def crawl_yosushi() -> List[Dict]:
                 print(f"   [debug] failed to write debug HTML: {e}")
         all_records.extend(recs_for_guid)
 
-    return all_records
+    # Dedupe by (section, name, price)
+    seen: Set[Tuple[Optional[str], str, Optional[str]]] = set()
+    unique: List[Dict] = []
+    for r in all_records:
+        key = (r.get("menu_section"), r.get("item_name", ""), r.get("price"))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(r)
+    return unique
 
 
 def save_outputs(items: List[Dict]):
