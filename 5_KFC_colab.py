@@ -2,6 +2,7 @@
 import json
 from datetime import date
 
+import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -10,7 +11,8 @@ from define_collection_wave import folder
 from helpers import create_folder, setup_driver_colab
 
 path_kfc = create_folder('5_KFC', folder)
-file_kfc = path_kfc + '/kfc_nutrition.json'
+file_kfc_json = path_kfc + '/kfc_nutrition.json'
+file_kfc_csv = path_kfc + '/kfc_nutrition.csv'
 
 def crawl_kfc_nutrition():
     # Setup driver using helper function
@@ -54,10 +56,18 @@ def crawl_kfc_nutrition():
             }
             item_dict.update(nutrients)
             results.append(item_dict)
-        # Save results to a JSON file
-        with open(file_kfc, 'w') as f:
+                
+        # Save results to JSON file
+        with open(file_kfc_json, 'w') as f:
             json.dump(results, f, indent=2)
-        print(f"Scraped {len(results)} items. Data saved to {file_kfc}.")
+        
+        # Save results to CSV file
+        df = pd.DataFrame(results)
+        df.to_csv(file_kfc_csv, index=False)
+        
+        print(f"Scraped {len(results)} items.")
+        print(f"JSON data saved to {file_kfc_json}")
+        print(f"CSV data saved to {file_kfc_csv}")
     finally:
         driver.quit()
 

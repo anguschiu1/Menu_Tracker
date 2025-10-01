@@ -3,6 +3,7 @@ import re
 from datetime import date
 from typing import List, Dict, Any, Optional
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup  # already in requirements
 
@@ -11,6 +12,7 @@ from helpers import create_folder, PDFDownloader
 
 path_ask = create_folder('25_Ask', folder)
 file_ask_json = path_ask + '/ask_menu.json'
+file_ask_csv = path_ask + '/ask_menu.csv'
 
 FULL_MENU_URL = 'https://www.askitalian.co.uk/menus/full-menu'
 MENUS_FROM_IDS_URL = 'https://www.askitalian.co.uk/wp-json/menus/get_menus_from_ids?ids={ids}'
@@ -167,10 +169,18 @@ def crawl_ask_menu():
         except Exception as e:
             print(f'Error processing menu {name}: {e}')
             continue
+    
     # Save JSON
     with open(file_ask_json, 'w') as f:
         json.dump(results, f, indent=2)
-    print(f'Scraped {len(results)} items. Data saved to {file_ask_json}.')
+    
+    # Save CSV
+    df = pd.DataFrame(results)
+    df.to_csv(file_ask_csv, index=False)
+    
+    print(f'Scraped {len(results)} items.')
+    print(f'JSON data saved to {file_ask_json}')
+    print(f'CSV data saved to {file_ask_csv}')
   except Exception as e:
       print(f'Error during ask scraping: {e}')
 

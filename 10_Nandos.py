@@ -2,6 +2,7 @@ import json
 from datetime import date
 from time import sleep
 
+import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,7 +12,8 @@ from helpers import create_folder, setup_driver, clean_text
 
 
 path_nandos = create_folder('10_Nandos', folder)
-file_nandos = path_nandos + '/nandos_nutrition.json'
+file_nandos_json = path_nandos + '/nandos_nutrition.json'
+file_nandos_csv = path_nandos + '/nandos_nutrition.csv'
 
 def crawl_nandos_nutrition():
     # Setup driver using helper function
@@ -140,9 +142,16 @@ def crawl_nandos_nutrition():
                 continue
         
         # Save results to JSON file
-        with open(file_nandos, 'w') as f:
+        with open(file_nandos_json, 'w') as f:
             json.dump(results, f, indent=2)
-        print(f"Scraped {len(results)} items. Data saved to {file_nandos}.")
+        
+        # Save results to CSV file
+        df = pd.DataFrame(results)
+        df.to_csv(file_nandos_csv, index=False)
+        
+        print(f"Scraped {len(results)} items.")
+        print(f"JSON data saved to {file_nandos_json}")
+        print(f"CSV data saved to {file_nandos_csv}")
         
     except Exception as e:
         print(f"Error during scraping: {str(e)}")

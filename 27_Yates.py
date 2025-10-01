@@ -2,6 +2,7 @@ import json
 from datetime import date
 from typing import List, Dict, Optional
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
@@ -13,6 +14,7 @@ REST_NAME = "Yate's"
 
 path_yates = create_folder('27_Yates', folder)
 file_yates_json = path_yates + '/yates_menu.json'
+file_yates_csv = path_yates + '/yates_menu.csv'
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
@@ -93,9 +95,17 @@ def crawl_yates_menu():
         html = fetch(BASE_URL)
         records = parse_menu(html)
         print(f'Scraped {len(records)} items.')
+        
+        # Save JSON
         with open(file_yates_json, 'w') as f:
             json.dump(records, f, indent=2)
-        print(f'Data saved to {file_yates_json}.')
+        
+        # Save CSV
+        df = pd.DataFrame(records)
+        df.to_csv(file_yates_csv, index=False)
+        
+        print(f'JSON data saved to {file_yates_json}')
+        print(f'CSV data saved to {file_yates_csv}')
     except Exception as e:
         print(f'Error during Yates scraping: {e}')
 

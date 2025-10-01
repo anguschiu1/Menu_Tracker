@@ -3,6 +3,7 @@ import re
 from datetime import date
 from typing import List, Dict, Any, Optional
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup  # already in requirements
 
@@ -11,6 +12,7 @@ from helpers import create_folder, PDFDownloader
 
 path_zizzi = create_folder('24_Zizzi', folder)
 file_zizzi_json = path_zizzi + '/zizzi_menu.json'
+file_zizzi_csv = path_zizzi + '/zizzi_menu.csv'
 
 FULL_MENU_URL = 'https://www.zizzi.co.uk/menus/full-menu'
 MENUS_FROM_IDS_URL = 'https://www.zizzi.co.uk/wp-json/menus/get_menus_from_ids?ids={ids}'
@@ -153,10 +155,18 @@ def crawl_zizzi_menu():
             except Exception as e:
                 print(f'Error processing menu {name}: {e}')
                 continue
+        
         # Save JSON
         with open(file_zizzi_json, 'w') as f:
             json.dump(results, f, indent=2)
-        print(f'Scraped {len(results)} items. Data saved to {file_zizzi_json}.')
+        
+        # Save CSV
+        df = pd.DataFrame(results)
+        df.to_csv(file_zizzi_csv, index=False)
+        
+        print(f'Scraped {len(results)} items.')
+        print(f'JSON data saved to {file_zizzi_json}')
+        print(f'CSV data saved to {file_zizzi_csv}')
     except Exception as e:
         print(f'Error during Zizzi scraping: {e}')
 
