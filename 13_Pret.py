@@ -2,6 +2,7 @@
 import json
 from datetime import date
 
+import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -10,7 +11,8 @@ from define_collection_wave import folder
 from helpers import create_folder, setup_driver
 
 path_pret = create_folder('13_Pret', folder)
-file_pret = path_pret + '/pret_nutrition.json'
+file_pret_json = path_pret + '/pret_nutrition.json'
+file_pret_csv = path_pret + '/pret_nutrition.csv'
 
 
 def get_product_urls(driver, category_url):
@@ -96,9 +98,16 @@ def crawl_pret_nutrition():
                   for item in process_category(driver, category_url)]
         
         # Save results to JSON file
-        with open(file_pret, 'w') as f:
+        with open(file_pret_json, 'w') as f:
             json.dump(results, f, indent=2)
-        print(f"Scraped {len(results)} items. Data saved to {file_pret}.")
+        
+        # Save results to CSV file
+        df = pd.DataFrame(results)
+        df.to_csv(file_pret_csv, index=False)
+        
+        print(f"Scraped {len(results)} items.")
+        print(f"JSON data saved to {file_pret_json}")
+        print(f"CSV data saved to {file_pret_csv}")
         
     finally:
         driver.quit()
