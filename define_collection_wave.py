@@ -1,17 +1,39 @@
 import os
+from typing import Optional
 
-# Detect environment and set appropriate path
-if os.path.exists('/content'):  # Running in Google Colab
-    folder = '/content/drive/MyDrive/menutracker/Sep_collection_2025'
-else:  # Running locally
-    folder = 'Sep_collection_2025'
+# Module-level variable that other modules import
+folder: Optional[str] = None
 
-def create_collection():
+def _detect_base_dir() -> str:
     try:
-        os.makedirs(folder, exist_ok=True)
-        print(f"Folder '{folder}' created successfully.")
+        if os.path.exists('/content') and os.path.exists('/content/drive/MyDrive'):
+            return '/content/drive/MyDrive/menutracker'
+    except Exception:
+        pass
+    # Local default: repository root (cwd)
+    return os.getcwd()
+
+def create_collection(collection_name: str = "default_collections") -> str:
+    """Create (if needed) and set the global collection folder.
+
+    Args:
+        collection_name: Name of the collection round folder (e.g., "Oct_collection_2025").
+
+    Returns:
+        The absolute path to the created/existing collection folder.
+    """
+    global folder
+    base = _detect_base_dir()
+    target = os.path.join(base, collection_name)
+    try:
+        os.makedirs(target, exist_ok=True)
     except Exception as e:
-        print(f"Error creating folder '{folder}': {e}")
-        
+        print(f"Error creating folder '{target}': {e}")
+        # Still set folder to allow downstream code to see attempted path
+    folder = target
+    print(f"Collection folder: {folder}")
+    return target
+
+# If executed directly, create a default collection to initialize `folder`
 if __name__ == "__main__":
     create_collection()
