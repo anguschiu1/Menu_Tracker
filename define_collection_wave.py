@@ -13,7 +13,7 @@ def _detect_base_dir() -> str:
     # Local default: repository root (cwd)
     return os.getcwd()
 
-def create_collection(collection_name: str = "default_collections") -> str:
+def create_collection(collection_name: str = "default_collection") -> str:
     """Create (if needed) and set the global collection folder.
 
     Args:

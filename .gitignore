@@ -87,8 +87,7 @@ Scrapy_spiders/*.json
 *.log
 
 # Ignore data collection folders
-June_collection_2025/
-Sep_collection_2025/
+*_collection*/
 
 # Ignore Notes and citation files
 Notes on data collection rounds.docx

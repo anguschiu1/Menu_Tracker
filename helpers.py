@@ -22,7 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
-from define_collection_wave import folder
+import define_collection_wave as dcw
 import platform
 
 def setup_driver(download_dir: str | None = None):
@@ -197,14 +197,18 @@ def cleanhtml(raw_html):
 # function to create a folder for each restaurant
 def create_folder(rest_name, folder):
     '''
-    Creates a folder for each restaurant
-    :param rest_name: the name of the restaurant folder
-    :return: a new folder for the restaurant will be created
+    Creates a folder for each restaurant under the active collection folder.
+    Use `define_collection_wave.folder`.
     '''
     rest_folder  =  rest_name + '_' + date.today().strftime("%b-%d-%Y")
-    path = os.path.join(folder, rest_folder)
+    # Resolve base directory robustly
+    base = getattr(dcw, 'folder', None)
+    if not os.path.isabs(base):
+        base = os.path.join(os.getcwd(), base)
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, rest_folder)
     if not os.path.exists(path):
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
     return path
 
 # function: download a PDF file
@@ -239,7 +243,9 @@ def combo_PDFDownload(rest_name, url, keyword='pdf', prex=None, verify=True):
     :param verify: True or False. whether to allow authentication
     :return: multiple downloaded PDFs
     '''
-    path = create_folder(rest_name, folder)
+    # Use live collection folder from define_collection_wave when available
+    base_folder = getattr(dcw, 'folder', None)
+    path = create_folder(rest_name, base_folder)
     html = requests.get(url, headers=headers, verify=verify)
     print(f'html: {html}')
     soup = BeautifulSoup(html.text, 'html.parser')
@@ -279,7 +285,9 @@ def combo_PDFDownload_class_name(rest_name, url, keyword='pdf', prex=None, verif
     :param verify: True or False. whether to allow authentication
     :return: multiple downloaded PDFs
     '''
-    path = create_folder(rest_name, folder)
+    # Use live collection folder from define_collection_wave when available
+    base_folder = getattr(dcw, 'folder', None)
+    path = create_folder(rest_name, base_folder)
     html = requests.get(url, headers=headers, verify=verify)
     soup = BeautifulSoup(html.text, 'html.parser')
     urls = soup.select(f"a[class*={keyword}]")
@@ -312,7 +320,7 @@ def selenium_PDF(rest_name, url, xpath_=None, prefix=None, use_partial_link_text
         wait_time: Seconds to wait between operations
     """
     # Create folder and configure driver to download into it when handling runtime PDFs
-    path = create_folder(rest_name, folder)
+    path = create_folder(rest_name, getattr(dcw, 'folder', None))
     driver = setup_driver(download_dir=path if handle_runtime_pdf else None)
     
     try:
